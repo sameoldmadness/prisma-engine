@@ -76,7 +76,11 @@ impl SqlSchemaDescriber {
     }
 
     fn get_columns(&self, schema: &str, table: &str) -> Vec<Column> {
-        let sql = "SELECT column_name, data_type, column_default, is_nullable, extra
+        // We alias all the columns because MySQL column names are case-insensitive in queries, but the
+        // information schema column names became upper-case in MySQL 8, causing the code fetching
+        // the result values by column name below to fail.
+        let sql = "
+            SELECT column_name column_name, data_type data_type, column_default column_default, is_nullable is_nullable, extra extra
             FROM information_schema.columns
             WHERE table_schema = ? AND table_name = ?
             ORDER BY column_name";
@@ -138,8 +142,18 @@ impl SqlSchemaDescriber {
         // One should think it's unique since it's used to join information_schema.key_column_usage
         // and information_schema.referential_constraints tables in this query lifted from
         // Stack Overflow
-        let sql = "SELECT kcu.constraint_name, kcu.column_name, kcu.referenced_table_name, 
-            kcu.referenced_column_name, kcu.ordinal_position, rc.delete_rule
+        //
+        // We alias all the columns because MySQL column names are case-insensitive in queries, but the
+        // information schema column names became upper-case in MySQL 8, causing the code fetching
+        // the result values by column name below to fail.
+        let sql = "
+            SELECT
+                kcu.constraint_name constraint_name,
+                kcu.column_name column_name,
+                kcu.referenced_table_name referenced_table_name,
+                kcu.referenced_column_name referenced_column_name,
+                kcu.ordinal_position ordinal_position,
+                rc.delete_rule delete_rule
             FROM information_schema.key_column_usage AS kcu
             INNER JOIN information_schema.referential_constraints AS rc ON
             kcu.constraint_name = rc.constraint_name
@@ -230,8 +244,11 @@ impl SqlSchemaDescriber {
     }
 
     fn get_indices(&self, schema: &str, table_name: &str, fk_cols: Vec<String>) -> (Vec<Index>, Option<PrimaryKey>) {
+        // We alias all the columns because MySQL column names are case-insensitive in queries, but the
+        // information schema column names became upper-case in MySQL 8, causing the code fetching
+        // the result values by column name below to fail.
         let sql = "SELECT DISTINCT
-                index_name, non_unique, column_name, seq_in_index
+                index_name index_name, non_unique non_unique, column_name column_name, seq_in_index seq_in_index
             FROM INFORMATION_SCHEMA.STATISTICS
             WHERE table_schema = ? AND table_name = ?";
         debug!("describing indices, SQL: {}", sql);
